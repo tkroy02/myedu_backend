@@ -14,16 +14,16 @@ app.get('/', (req, res) => {
 });
 
 app.post('/submit-quiz', async (req, res) => {
-    const { email, name, score } = req.body || {};
+    const { email, name, score, total } = req.body || {};
 
-    if (!email || !name || score === undefined) {
+    if (!email || !name || score === undefined || total === undefined) {
         return res.status(400).json({
             success: false,
-            message: "Invalid request: name, email, and score are required"
+            message: "Invalid request: name, email, score, and total are required"
         });
     }
 
-    console.log("Received quiz result:", { email, name, score });
+    console.log("Received quiz result:", { email, name, score, total });
 
     try {
         const transporter = nodemailer.createTransport({
@@ -42,7 +42,7 @@ app.post('/submit-quiz', async (req, res) => {
             from: process.env.GMAIL_USER,
             to: email,
             subject: 'Your Tklesson Quiz Score',
-            text: `Hi ${name},\n\nYou scored ${score} out of 40 on the Tklesson Biology Quiz.\n\nGreat work!\n\n- Tklesson`
+            text: `Hi ${name},\n\nYou scored ${score} out of ${total} on the Tklesson Biology Quiz.\n\nGreat work!\n\n- Tklesson`
         };
 
         // Email to admin (you)
@@ -50,7 +50,7 @@ app.post('/submit-quiz', async (req, res) => {
             from: process.env.GMAIL_USER,
             to: process.env.ADMIN_EMAIL,
             subject: `Quiz Result: ${name}`,
-            text: `Student: ${name}\nEmail: ${email}\nScore: ${score}/40`
+            text: `Student: ${name}\nEmail: ${email}\nScore: ${score}/${total}`
         };
 
         // Send both emails
@@ -66,7 +66,7 @@ app.post('/submit-quiz', async (req, res) => {
         console.error("Error sending email:", err);
         res.status(500).json({
             success: false,
-            message: "Quiz received and score sent to your email."
+            message: "Error sending emails. Please try again later."
         });
     }
 });
