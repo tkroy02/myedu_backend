@@ -4,11 +4,11 @@ const cors = require('cors');
 const nodemailer = require('nodemailer');
 
 const app = express();
-const PORT = process.env.PORT || 3000; // <- updated for hosting
+const PORT = process.env.PORT || 3000; // works locally + on hosting
 
 // Middleware
-app.use(cors()); // Allow requests from frontend
-app.use(express.json()); // Parse JSON bodies
+app.use(cors());
+app.use(express.json());
 
 // Health check
 app.get('/', (req, res) => {
@@ -17,58 +17,63 @@ app.get('/', (req, res) => {
 
 // Quiz submission endpoint (with email)
 app.post('/submit-quiz', async (req, res) => {
-    const body = req.body || {};
-    const { email, name, score } = body;
+    const { email, name, score } = req.body || {};
 
-    if (!email || score === undefined) {
+    // Require all fields
+    if (!email || !name || score === undefined) {
         return res.status(400).json({
             success: false,
-            message: "Invalid request: email and score are required"
+            message: "Invalid request: name, email, and score are required"
         });
     }
 
-    // Log submission
-    console.log("Received quiz result:", { email, name: name || "Anonymous", score });
+    console.log("Received quiz result:", { email, name, score });
 
-    // Send email
     try {
-        // Configure transporter (example: Gmail) with TLS fix
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
-                user: process.env.GMAIL_USER, // your Gmail address
-                pass: process.env.GMAIL_PASS  // app password if using 2FA
+                user: process.env.GMAIL_USER,
+                pass: process.env.GMAIL_PASS
             },
             tls: {
-                rejectUnauthorized: false  // ignore self-signed certs
-            },
-            logger: true,  // log info to console
-            debug: true    // show SMTP traffic
+                rejectUnauthorized: false
+            }
         });
 
-        const mailOptions = {
+        // Email to student
+        const studentMail = {
             from: process.env.GMAIL_USER,
             to: email,
             subject: 'Your Tklesson Quiz Score',
-            text: `Hi ${name || "Student"},\n\nYou scored ${score} out of 36 on the Tklesson Biology Quiz.\n\nGreat work!`
+            text: `Hi ${name},\n\nYou scored ${score} out of 36 on the Tklesson Biology Quiz.\n\nGreat work!\n\n- Tklesson`
         };
 
-        await transporter.sendMail(mailOptions);
+        // Email to admin (you)
+        const adminMail = {
+            from: process.env.GMAIL_USER,
+            to: process.env.ADMIN_EMAIL, // set this in .env
+            subject: `Quiz Result: ${name}`,
+            text: `Student: ${name}\nEmail: ${email}\nScore: ${score}/36`
+        };
+
+        await transporter.sendMail(studentMail);
+        await transporter.sendMail(adminMail);
 
         res.json({
             success: true,
-            message: `Quiz result received and email sent to ${email}!`
+            message: `Quiz result processed. Email sent to ${email}, and a copy sent to admin.`
         });
     } catch (err) {
         console.error("Error sending email:", err);
         res.status(500).json({
             success: false,
-            message: "Quiz received but failed to send email."
+            message: "Quiz received but failed to send emails."
         });
     }
 });
 
-// Catch-all for invalid routes
+// Catch-all
 app.use((req, res) => {
     res.status(404).json({ success: false, message: "Endpoint not found" });
 });
