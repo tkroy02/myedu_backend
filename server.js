@@ -25,12 +25,16 @@ app.post('/submit-quiz', async (req, res) => {
 
     console.log("Received quiz result:", { email, name, score, total, answers });
 
-    // Build quiz details string
-    const quizDetails = answers.map((item, idx) => {
-        return `${idx + 1}. ${item.question}
-Your answer: ${item.userAnswer}
-Correct answer: ${Array.isArray(item.correctAnswer) ? item.correctAnswer[0] : item.correctAnswer}\n`;
-    }).join('\n');
+    // Build HTML quiz details with color coding
+    const quizDetailsHTML = answers.map((item, idx) => {
+        const correctAnswer = Array.isArray(item.correctAnswer) ? item.correctAnswer[0] : item.correctAnswer;
+        const isCorrect = item.userAnswer.toLowerCase() === correctAnswer.toLowerCase();
+        return `<p>
+<strong>${idx + 1}. ${item.question}</strong><br>
+Your answer: <span style="color:${isCorrect ? 'green' : 'red'};">${item.userAnswer}</span><br>
+Correct answer: <span style="color:green;">${correctAnswer}</span>
+</p>`;
+    }).join('');
 
     try {
         const transporter = nodemailer.createTransport({
@@ -47,7 +51,11 @@ Correct answer: ${Array.isArray(item.correctAnswer) ? item.correctAnswer[0] : it
             from: process.env.GMAIL_USER,
             to: email,
             subject: `Your Tklesson Quiz Score – ${test}`,
-            text: `Hi ${name},\n\nYou scored ${score} out of ${total} on the "${test}" quiz.\n\nHere are your answers:\n\n${quizDetails}\n\n- Tklesson`
+            html: `<p>Hi ${name},</p>
+<p>You scored <strong>${score} out of ${total}</strong> on the "${test}" quiz.</p>
+<h3>Your answers:</h3>
+${quizDetailsHTML}
+<p>- Tklesson</p>`
         };
 
         // Email to admin
@@ -55,10 +63,12 @@ Correct answer: ${Array.isArray(item.correctAnswer) ? item.correctAnswer[0] : it
             from: process.env.GMAIL_USER,
             to: process.env.ADMIN_EMAIL,
             subject: `Quiz Result: ${name} – ${test}`,
-            text: `Student: ${name}\nEmail: ${email}\nScore: ${score}/${total}\n\nQuiz Details:\n\n${quizDetails}`
+            html: `<p>Student: ${name}<br>Email: ${email}<br>Score: ${score}/${total}</p>
+<h3>Quiz Details:</h3>
+${quizDetailsHTML}`
         };
 
-        // Send emails
+        // Send both emails
         await transporter.sendMail(studentMail);
         await transporter.sendMail(adminMail);
 
