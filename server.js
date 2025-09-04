@@ -14,16 +14,23 @@ app.get('/', (req, res) => {
 });
 
 app.post('/submit-quiz', async (req, res) => {
-    const { email, name, score, total } = req.body || {};
+    const { email, name, score, total, answers, test } = req.body || {};
 
-    if (!email || !name || score === undefined || total === undefined) {
+    if (!email || !name || score === undefined || total === undefined || !answers) {
         return res.status(400).json({
             success: false,
-            message: "Invalid request: name, email, score, and total are required"
+            message: "Invalid request: name, email, score, total, and answers are required"
         });
     }
 
-    console.log("Received quiz result:", { email, name, score, total });
+    console.log("Received quiz result:", { email, name, score, total, answers });
+
+    // Build quiz details string
+    const quizDetails = answers.map((item, idx) => {
+        return `${idx + 1}. ${item.question}
+Your answer: ${item.userAnswer}
+Correct answer: ${Array.isArray(item.correctAnswer) ? item.correctAnswer[0] : item.correctAnswer}\n`;
+    }).join('\n');
 
     try {
         const transporter = nodemailer.createTransport({
@@ -32,34 +39,32 @@ app.post('/submit-quiz', async (req, res) => {
                 user: process.env.GMAIL_USER,
                 pass: process.env.GMAIL_PASS
             },
-            tls: {
-                rejectUnauthorized: false
-            }
+            tls: { rejectUnauthorized: false }
         });
 
         // Email to student
         const studentMail = {
             from: process.env.GMAIL_USER,
             to: email,
-            subject: 'Your Tklesson Quiz Score',
-            text: `Hi ${name},\n\nYou scored ${score} out of ${total} on the Tklesson Biology Quiz.\n\nGreat work!\n\n- Tklesson`
+            subject: `Your Tklesson Quiz Score – ${test}`,
+            text: `Hi ${name},\n\nYou scored ${score} out of ${total} on the "${test}" quiz.\n\nHere are your answers:\n\n${quizDetails}\n\n- Tklesson`
         };
 
-        // Email to admin (you)
+        // Email to admin
         const adminMail = {
             from: process.env.GMAIL_USER,
             to: process.env.ADMIN_EMAIL,
-            subject: `Quiz Result: ${name}`,
-            text: `Student: ${name}\nEmail: ${email}\nScore: ${score}/${total}`
+            subject: `Quiz Result: ${name} – ${test}`,
+            text: `Student: ${name}\nEmail: ${email}\nScore: ${score}/${total}\n\nQuiz Details:\n\n${quizDetails}`
         };
 
-        // Send both emails
+        // Send emails
         await transporter.sendMail(studentMail);
         await transporter.sendMail(adminMail);
 
         res.json({
             success: true,
-            message: `Quiz received and score sent to your email!`
+            message: `Quiz received and emails sent!`
         });
 
     } catch (err) {
